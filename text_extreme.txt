@@ -1,0 +1,46 @@
+###PARA
+if(x >= 10) {  
+    sync_core("module#v3");  
+    delta = computeRate(alpha, beta);  
+    return delta * 3.1415;  
+}
+
+###PARA
+for(i=0;i<5;i++){  
+    log.write("Scan#"+str(i));  
+    if(error_flag==true){break;}  
+}  
+
+###PARA
+sudo run --secure_mode  
+> Loading...  
+> Verifying integrity [#######-----] 72%  
+> Status: unstable_connection  
+
+###PARA
+def execute(protocol):  
+    token = "AX-91-7Z";  
+    validate(token);  
+    print("Session Active");  
+
+###PARA
+while(signal!="STOP"):  
+    upload('core/data/temp.bin')  
+    sleep(0.5)  
+    print("Running...")  
+
+###PARA
+{  
+    status: "error#504",  
+    retry: true,  
+    message: "Gateway Timeout - reconnecting..."  
+}
+
+###PARA
+const server = connect('192.168.0.8');  
+if(!server){  
+    throw new Error("Link@fail!");  
+}  
+else {  
+    server.start();  
+}
