@@ -1,2 +1,2 @@
-pygame
 mysql-connector-python
+colorama
