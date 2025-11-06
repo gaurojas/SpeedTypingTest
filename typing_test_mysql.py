@@ -225,6 +225,20 @@ class Database:
         except Error as e:
             print(f"{Colors.RED}Error fetching rank: {e}{Colors.RESET}")
             return None
+    def delete_user_results(self, user_id):
+        """Delete all test_results rows for a given user_id.
+
+        Returns the number of deleted rows, or -1 on error.
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("DELETE FROM test_results WHERE user_id = %s", (user_id,))
+            deleted = cursor.rowcount
+            self.connection.commit()
+            return deleted
+        except Error as e:
+            print(f"{Colors.RED}Error deleting user results: {e}{Colors.RESET}")
+            return -1
     def close(self):
         if self.connection and self.connection.is_connected():
             self.connection.close()
@@ -237,7 +251,11 @@ class TypingTest:
         self.keyboard = KeyboardInput()
     def play_error_beep(self):
         try:
-            winsound.Beep(1000, 100)
+            sound_file = os.path.join(os.path.dirname(__file__), 'click.wav')
+            if os.path.exists(sound_file):
+                winsound.PlaySound(sound_file, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            else:
+                winsound.Beep(800, 200)  
         except:
             print('\a', end='', flush=True)
     def clear_screen(self):
@@ -369,10 +387,12 @@ class TypingTest:
                 while char is None:
                     char = self.keyboard.get_char()
                     time.sleep(0.01)
-                    if start_time and time.time() - last_update > 0.5:
+                    # Only update WPM every second instead of every 0.5 seconds
+                    if start_time and time.time() - last_update > 1.0:
                         elapsed = time.time() - start_time
                         _, current_wpm = self.calculate_wpm(len(typed_text), elapsed, errors)
                         last_update = time.time()
+                        # Only refresh display when WPM updates
                         self.display_typing_interface(display_text, typed_text, errors, start_time, current_wpm)
                 if start_time is None and char not in ['\b', '\x1b']:
                     start_time = time.time()
@@ -401,11 +421,8 @@ class TypingTest:
                         errors += 1
                 else:
                     pass
-                if start_time and time.time() - last_update > 0.2:
-                    elapsed = time.time() - start_time
-                    _, current_wpm = self.calculate_wpm(len(typed_text), elapsed, errors)
-                    last_update = time.time()
-                    self.display_typing_interface(display_text, typed_text, errors, start_time, current_wpm)
+                # Only update display when character is typed, not on a timer
+                self.display_typing_interface(display_text, typed_text, errors, start_time, current_wpm)
             self.display_typing_interface(display_text, typed_text, errors, start_time, current_wpm)
             time.sleep(0.6)
             end_time = time.time()
@@ -504,6 +521,31 @@ class TypingTest:
         if rank:
             print(f"  {Colors.BOLD}Global Rank:{Colors.RESET}       {Colors.YELLOW}#{rank}{Colors.RESET}")
         print()
+    def clear_history(self):
+        """Prompt the user to confirm and clear their test history (all test_results rows).
+
+        Confirmation requires typing the current username to avoid accidents.
+        """
+        if not self.current_user_id:
+            print(f"{Colors.RED}No user logged in. Please login first.{Colors.RESET}")
+            time.sleep(1)
+            return
+        if not self.db.connection:
+            if not self.db.connect():
+                print(f"{Colors.RED}Unable to connect to database. Try again later.{Colors.RESET}")
+                time.sleep(1)
+                return
+        prompt = input(f"{Colors.YELLOW}Type your username ({self.username}) to confirm clearing ALL your test history, or type CANCEL to abort: {Colors.RESET}").strip()
+        if prompt != self.username:
+            print(f"{Colors.RED}Confirmation failed — history not cleared.{Colors.RESET}")
+            time.sleep(1)
+            return
+        deleted = self.db.delete_user_results(self.current_user_id)
+        if deleted >= 0:
+            print(f"{Colors.GREEN}Successfully deleted {deleted} test result(s) from your history.{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}Failed to delete history. See error above.{Colors.RESET}")
+        time.sleep(1)
     def main_menu(self):
         while True:
             self.clear_screen()
@@ -517,8 +559,9 @@ class TypingTest:
             print(f"  {Colors.CYAN}2.{Colors.RESET} View Leaderboard")
             print(f"  {Colors.CYAN}3.{Colors.RESET} View Your Statistics")
             print(f"  {Colors.CYAN}4.{Colors.RESET} Change Username")
-            print(f"  {Colors.CYAN}5.{Colors.RESET} Exit")
-            choice = input(f"\n{Colors.YELLOW}Enter your choice (1-5): {Colors.RESET}").strip()
+            print(f"  {Colors.CYAN}5.{Colors.RESET} Clear History")
+            print(f"  {Colors.CYAN}6.{Colors.RESET} Exit")
+            choice = input(f"\n{Colors.YELLOW}Enter your choice (1-6): {Colors.RESET}").strip()
             if choice == '1':
                 self.difficulty_menu()
             elif choice == '2':
@@ -529,6 +572,8 @@ class TypingTest:
             elif choice == '4':
                 self.login()
             elif choice == '5':
+                self.clear_history()
+            elif choice == '6':
                 print(f"\n{Colors.GREEN}Thanks for using Speed Typing Test! Goodbye!{Colors.RESET}\n")
                 break
             else:
