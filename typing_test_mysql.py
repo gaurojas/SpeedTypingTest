@@ -289,71 +289,7 @@ class Database:
             print(f"{Colors.RED}Error exporting CSV: {e}{Colors.RESET}")
             return -1
 
-    def import_results_from_csv(self, filepath):
-        """Import results from a CSV file. CSV must have header: username,wpm,accuracy,raw_wpm,errors,difficulty,time_taken[,test_date]
-        Returns tuple (imported_count, skipped_count) or (-1, 0) on error.
-        """
-        try:
-            if not os.path.exists(filepath):
-                print(f"{Colors.RED}CSV file not found: {filepath}{Colors.RESET}")
-                return -1, 0
-            if not self.connection:
-                if not self.connect():
-                    print(f"{Colors.RED}Unable to connect to database for import.{Colors.RESET}")
-                    return -1, 0
-            imported = 0
-            skipped = 0
-            with open(filepath, 'r', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                required = {'username','wpm','accuracy','raw_wpm','errors','difficulty','time_taken'}
-                headers = set(reader.fieldnames or [])
-                if not required.issubset(headers):
-                    print(f"{Colors.RED}CSV missing required headers. Required: {required}{Colors.RESET}")
-                    return -1, 0
-                for row in reader:
-                    try:
-                        username = row['username'].strip()
-                        wpm = float(row['wpm'])
-                        accuracy = float(row['accuracy'])
-                        raw_wpm = float(row['raw_wpm'])
-                        errors = int(float(row['errors']))
-                        difficulty = row['difficulty'].strip()
-                        time_taken = int(float(row['time_taken']))
-                        test_date = None
-                        if 'test_date' in row and row['test_date'].strip():
-                            try:
-                                test_date = datetime.strptime(row['test_date'].strip(), '%Y-%m-%d %H:%M:%S')
-                            except:
-                                try:
-                                    test_date = datetime.fromisoformat(row['test_date'].strip())
-                                except:
-                                    test_date = None
-                        # ensure user exists
-                        user_id = self.get_or_create_user(username)
-                        if not user_id:
-                            skipped += 1
-                            continue
-                        cursor = self.connection.cursor()
-                        if test_date:
-                            cursor.execute(
-                                "INSERT INTO test_results (user_id, wpm, accuracy, raw_wpm, errors, difficulty, time_taken, test_date) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                                (user_id, wpm, accuracy, raw_wpm, errors, difficulty, time_taken, test_date)
-                            )
-                        else:
-                            cursor.execute(
-                                "INSERT INTO test_results (user_id, wpm, accuracy, raw_wpm, errors, difficulty, time_taken) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                                (user_id, wpm, accuracy, raw_wpm, errors, difficulty, time_taken)
-                            )
-                        self.connection.commit()
-                        imported += 1
-                    except Exception:
-                        skipped += 1
-                        continue
-            print(f"{Colors.GREEN}Imported {imported} rows, skipped {skipped} rows from {filepath}{Colors.RESET}")
-            return imported, skipped
-        except Exception as e:
-            print(f"{Colors.RED}Error importing CSV: {e}{Colors.RESET}")
-            return -1, 0
+
 
 class TypingTest:
     def __init__(self):
@@ -673,9 +609,8 @@ class TypingTest:
             print(f"  {Colors.CYAN}4.{Colors.RESET} Change Username")
             print(f"  {Colors.CYAN}5.{Colors.RESET} Clear History")
             print(f"  {Colors.CYAN}6.{Colors.RESET} Export Results to CSV")
-            print(f"  {Colors.CYAN}7.{Colors.RESET} Import Results from CSV")
-            print(f"  {Colors.CYAN}8.{Colors.RESET} Exit")
-            choice = input(f"\n{Colors.YELLOW}Enter your choice (1-8): {Colors.RESET}").strip()
+            print(f"  {Colors.CYAN}7.{Colors.RESET} Exit")
+            choice = input(f"\n{Colors.YELLOW}Enter your choice (1-7): {Colors.RESET}").strip()
             if choice == '1':
                 self.difficulty_menu()
             elif choice == '2':
@@ -700,14 +635,6 @@ class TypingTest:
                     self.db.export_results_to_csv(path, difficulty=diff)
                     input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
             elif choice == '7':
-                path = input(f"{Colors.YELLOW}Enter CSV filepath to import (e.g. import.csv): {Colors.RESET}").strip()
-                if not path:
-                    print(f"{Colors.RED}No filepath provided.{Colors.RESET}")
-                    time.sleep(1)
-                else:
-                    self.db.import_results_from_csv(path)
-                    input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
-            elif choice == '8':
                 print(f"\n{Colors.GREEN}Thanks for using Speed Typing Test! Goodbye!{Colors.RESET}\n")
                 break
             else:
