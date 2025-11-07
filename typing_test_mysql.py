@@ -36,20 +36,46 @@ class Colors:
     UNDERLINE = '\033[4m'
     DIM = '\033[2m'
 
+class Box:
+    SINGLE = {
+        'top_left': '┌', 'top_right': '┐', 'bottom_left': '└', 'bottom_right': '┘',
+        'horizontal': '─', 'vertical': '│', 
+        'title_left': '├', 'title_right': '┤'
+    }
+    DOUBLE = {
+        'top_left': '╔', 'top_right': '╗', 'bottom_left': '╚', 'bottom_right': '╝',
+        'horizontal': '═', 'vertical': '║',
+        'title_left': '╠', 'title_right': '╣'
+    }
+    
+    @staticmethod
+    def create_box(width, title="", style='single', color=Colors.CYAN):
+        box = Box.SINGLE if style == 'single' else Box.DOUBLE
+        top = f"{color}{box['top_left']}{box['horizontal'] * (width-2)}{box['top_right']}{Colors.RESET}"
+        if title:
+            title_bar = f"{color}{box['title_left']}{box['horizontal'] * ((width-len(title))//2 - 2)} {Colors.BOLD}{title} {Colors.RESET}{color}{box['horizontal'] * ((width-len(title))//2 - 2)}{box['title_right']}{Colors.RESET}"
+            return f"{top}\n{title_bar}"
+        return top
+    
+    @staticmethod
+    def create_bottom(width, style='single', color=Colors.CYAN):
+        box = Box.SINGLE if style == 'single' else Box.DOUBLE
+        return f"{color}{box['bottom_left']}{box['horizontal'] * (width-2)}{box['bottom_right']}{Colors.RESET}"
+
 class KeyboardInput:
     @staticmethod
     def get_char():
         if os.name == 'nt':
             if msvcrt.kbhit():
                 char = msvcrt.getch()
-                if char == b'\xe0':
+                if char == b'\xe0': 
                     msvcrt.getch()
                     return None
-                elif char == b'\r':
+                elif char == b'\r': #Enter 
                     return '\n'
-                elif char == b'\x08':
+                elif char == b'\x08': #Backspace
                     return '\b'
-                elif char == b'\x1b':
+                elif char == b'\x1b': #Escape
                     return '\x1b'
                 try:
                     return char.decode('utf-8')
@@ -92,9 +118,9 @@ class Database:
             return False
     def create_tables(self):
         try:
-            cursor = self.connection.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
+            cursor = self.connection.cursor()   # user and test result table
+            cursor.execute("""               
+                CREATE TABLE IF NOT EXISTS users (  
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -122,7 +148,7 @@ class Database:
         except Error as e:
             print(f"{Colors.RED}Error creating tables: {e}{Colors.RESET}")
             return False
-    def get_or_create_user(self, username):
+    def get_or_create_user(self, username):    
         try:
             cursor = self.connection.cursor()
             cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
@@ -306,9 +332,9 @@ class TypingTest:
                 winsound.Beep(800, 200)  
         except:
             print('\a', end='', flush=True)
-    def clear_screen(self):
+    def clear_screen(self): # ANSI clear screen
         print('\033[H\033[J', end='', flush=True)
-    def move_cursor(self, x, y):
+    def move_cursor(self, x, y): # ANSI move cursor
         print(f"\033[{y};{x}H", end='', flush=True)
     def hide_cursor(self):
         print('\033[?25l', end='', flush=True)
@@ -347,7 +373,7 @@ class TypingTest:
         gross_wpm = (chars_typed / 5) / minutes
         net_wpm = max(0, ((chars_typed / 5) - errors) / minutes)
         return round(gross_wpm, 2), round(net_wpm, 2)
-    def wrap_text(self, text, width=80):
+    def wrap_text(self, text, width=120):  # Increased default width for larger displays
         words = text.split()
         lines = []
         current_line = []
@@ -367,18 +393,27 @@ class TypingTest:
         return '\n'.join(lines)
     def display_typing_interface(self, display_text, typed_text, errors, start_time, current_wpm):
         self.clear_screen()
-        print(f"\n{Colors.CYAN}{Colors.BOLD}╔{'═' * 78}╗{Colors.RESET}")
-        print(f"{Colors.CYAN}{Colors.BOLD}║{' ' * 28}TYPING TEST{' ' * 39}║{Colors.RESET}")
-        print(f"{Colors.CYAN}{Colors.BOLD}╚{'═' * 78}╝{Colors.RESET}\n")
+        width = 120  # Increased width for larger displays
+        
+        # Header
+        print(Box.create_box(width, "⌨️  TYPING TEST", 'double', Colors.CYAN))
+        
+        # Stats bar
         elapsed = time.time() - start_time if start_time else 0
         correct_chars = len(typed_text) - errors
         accuracy = (correct_chars / max(len(typed_text), 1) * 100) if typed_text else 100
-        stats = f"  WPM: {Colors.GREEN}{current_wpm}{Colors.RESET}  |  "
-        stats += f"Accuracy: {Colors.GREEN if accuracy >= 95 else Colors.YELLOW if accuracy >= 85 else Colors.RED}{accuracy:.1f}%{Colors.RESET}  |  "
-        stats += f"Errors: {Colors.RED}{errors}{Colors.RESET}  |  "
-        stats += f"Time: {Colors.CYAN}{elapsed:.1f}s{Colors.RESET}"
-        print(stats)
-        print(f"{Colors.CYAN}{'─' * 80}{Colors.RESET}\n")
+        
+        stats = [
+            (f"⚡ WPM: {current_wpm}", Colors.GREEN),
+            (f"📊 Accuracy: {accuracy:.1f}%", 
+             Colors.GREEN if accuracy >= 95 else Colors.YELLOW if accuracy >= 85 else Colors.RED),
+            (f"❌ Errors: {errors}", Colors.RED),
+            (f"⏱️  Time: {elapsed:.1f}s", Colors.CYAN)
+        ]
+        
+        print(Box.create_bottom(width, 'double', Colors.CYAN))
+        print("\n" + " │ ".join(f"{color}{stat}{Colors.RESET}" for stat, color in stats))
+        print(f"\n{Box.create_box(width, style='single', color=Colors.CYAN)}\n")
         typed_len = len(typed_text)
         non_newline_idx = 0
         out_lines = []
@@ -404,8 +439,9 @@ class TypingTest:
         out_lines.append(current_line)
         for ln in out_lines:
             print(ln)
-        print(f"\n{Colors.CYAN}{'─' * 80}{Colors.RESET}")
-        print(f"{Colors.DIM}ESC to quit | Backspace to correct | Type to continue{Colors.RESET}\n")
+        print(f"\n{Box.create_box(width, style='single', color=Colors.CYAN)}")
+        print(f"{Colors.DIM}ESC to quit │ Backspace to correct │ Type to continue{Colors.RESET}")
+        print(Box.create_bottom(width, 'single', Colors.CYAN))
     def run_test_live(self, difficulty):
         display_text = self.load_text(difficulty)
         if not display_text:
@@ -520,16 +556,17 @@ class TypingTest:
             return "⭐ NEEDS IMPROVEMENT!"
     def display_leaderboard(self, difficulty=None):
         self.clear_screen()
+        width = 120  # Increased width for larger displays
         title = f"🏆 {'GLOBAL' if not difficulty else difficulty.upper()} LEADERBOARD 🏆"
-        print(f"\n{Colors.YELLOW}{Colors.BOLD}╔{'═' * 78}╗{Colors.RESET}")
-        print(f"{Colors.YELLOW}{Colors.BOLD}║{title.center(78)}║{Colors.RESET}")
-        print(f"{Colors.YELLOW}{Colors.BOLD}╚{'═' * 78}╝{Colors.RESET}\n")
+        print(f"\n{Colors.YELLOW}{Colors.BOLD}╔{'═' * (width-2)}╗{Colors.RESET}")
+        print(f"{Colors.YELLOW}{Colors.BOLD}║{title.center(width-2)}║{Colors.RESET}")
+        print(f"{Colors.YELLOW}{Colors.BOLD}╚{'═' * (width-2)}╝{Colors.RESET}\n")
         leaderboard = self.db.get_leaderboard(difficulty, 20)
         if not leaderboard:
             print(f"{Colors.RED}No data available yet. Be the first to take a test!{Colors.RESET}\n")
             return
-        print(f"{Colors.CYAN}{Colors.BOLD}{'#':<5}{'Username':<20}{'WPM':<10}{'Accuracy':<12}{'Date':<20}{'Difficulty':<13}{Colors.RESET}")
-        print(f"{Colors.CYAN}{'─' * 80}{Colors.RESET}")
+        print(f"{Colors.CYAN}{Colors.BOLD}{'#':<6}{'Username':<30}{'WPM':<15}{'Accuracy':<15}{'Date':<25}{'Difficulty':<15}{Colors.RESET}")
+        print(f"{Colors.CYAN}{'─' * width}{Colors.RESET}")
         for idx, (username, wpm, accuracy, test_date, diff) in enumerate(leaderboard, 1):
             medal = ""
             if idx == 1:
@@ -540,8 +577,8 @@ class TypingTest:
                 medal = "🥉"
             highlight = Colors.GREEN if username == self.username else Colors.WHITE
             date_str = test_date.strftime("%Y-%m-%d %H:%M")
-            print(f"{highlight}{idx:<5}{username:<20}{wpm:<10.2f}{accuracy:<11.2f}%{date_str:<20}{diff:<13}{medal}{Colors.RESET}")
-        print(f"\n{Colors.CYAN}{'─' * 80}{Colors.RESET}\n")
+            print(f"{highlight}{idx:<6}{username:<30}{wpm:<15.2f}{accuracy:<14.2f}%{date_str:<25}{diff:<15}{medal}{Colors.RESET}")
+        print(f"\n{Colors.CYAN}{'─' * width}{Colors.RESET}\n")
         if self.current_user_id:
             rank = self.db.get_user_rank(self.current_user_id, difficulty)
             if rank and rank > 20:
@@ -597,20 +634,37 @@ class TypingTest:
     def main_menu(self):
         while True:
             self.clear_screen()
-            print(f"\n{Colors.BOLD}{Colors.CYAN}╔{'═' * 58}╗{Colors.RESET}")
-            print(f"{Colors.BOLD}{Colors.CYAN}║{' ' * 17}SPEED TYPING TEST{' ' * 23}║{Colors.RESET}")
-            print(f"{Colors.BOLD}{Colors.CYAN}╚{'═' * 58}╝{Colors.RESET}\n")
+            width = 100  # Increased width for larger displays
+            
+            # Header
+            print(Box.create_box(width, "SPEED TYPING TEST", 'double', Colors.CYAN))
+            print(Box.create_bottom(width, 'double', Colors.CYAN))
+
+            # User info
             if self.username:
-                print(f"{Colors.GREEN}Logged in as: {self.username}{Colors.RESET}\n")
-            print(f"{Colors.BOLD}Choose an option:{Colors.RESET}\n")
-            print(f"  {Colors.CYAN}1.{Colors.RESET} Start Typing Test")
-            print(f"  {Colors.CYAN}2.{Colors.RESET} View Leaderboard")
-            print(f"  {Colors.CYAN}3.{Colors.RESET} View Your Statistics")
-            print(f"  {Colors.CYAN}4.{Colors.RESET} Change Username")
-            print(f"  {Colors.CYAN}5.{Colors.RESET} Clear History")
-            print(f"  {Colors.CYAN}6.{Colors.RESET} Export Results to CSV")
-            print(f"  {Colors.CYAN}7.{Colors.RESET} Exit")
-            choice = input(f"\n{Colors.YELLOW}Enter your choice (1-7): {Colors.RESET}").strip()
+                user_info = f" 👤 Logged in as: {Colors.GREEN}{self.username}{Colors.RESET}"
+                print(f"\n{user_info}")
+            
+            # Menu options with improved styling
+            print(f"\n{Colors.BOLD}📝 Menu Options:{Colors.RESET}\n")
+            
+            options = [
+                ("🎯 Start Typing Test", Colors.GREEN),
+                ("🏆 View Leaderboard", Colors.YELLOW),
+                ("📊 View Your Statistics", Colors.MAGENTA),
+                ("👤 Change Username", Colors.BLUE),
+                ("🗑️  Clear History", Colors.RED),
+                ("📁 Export Results to CSV", Colors.CYAN),
+                ("🚪 Exit", Colors.RED)
+            ]
+            
+            for idx, (option, color) in enumerate(options, 1):
+                print(f"  {color}{Colors.BOLD}{idx}.{Colors.RESET} {option}")
+            
+            # Bottom box
+            print(f"\n{Box.create_box(width, style='single', color=Colors.CYAN)}")
+            choice = input(f"{Colors.YELLOW}Enter your choice (1-7): {Colors.RESET}").strip()
+            print(Box.create_bottom(width, 'single', Colors.CYAN))
             if choice == '1':
                 self.difficulty_menu()
             elif choice == '2':
@@ -642,13 +696,26 @@ class TypingTest:
                 time.sleep(1)
     def difficulty_menu(self):
         self.clear_screen()
-        print(f"\n{Colors.BOLD}Select Difficulty:{Colors.RESET}\n")
-        print(f"  {Colors.GREEN}1.{Colors.RESET} Easy")
-        print(f"  {Colors.YELLOW}2.{Colors.RESET} Medium")
-        print(f"  {Colors.MAGENTA}3.{Colors.RESET} Hard")
-        print(f"  {Colors.RED}4.{Colors.RESET} Extreme")
-        print(f"  {Colors.CYAN}5.{Colors.RESET} Back to Main Menu")
-        choice = input(f"\n{Colors.YELLOW}Enter your choice (1-5): {Colors.RESET}").strip()
+        width = 90  # Increased width for larger displays
+        
+        print(Box.create_box(width, "SELECT DIFFICULTY", 'double', Colors.MAGENTA))
+        print(Box.create_bottom(width, 'double', Colors.MAGENTA))
+        
+        difficulties = [
+            ("🟢 Easy", Colors.GREEN, "Beginner friendly text"),
+            ("🟡 Medium", Colors.YELLOW, "Moderate complexity"),
+            ("🟣 Hard", Colors.MAGENTA, "Challenging passages"),
+            ("🔴 Extreme", Colors.RED, "Expert level text"),
+            ("⬅️  Back", Colors.CYAN, "Return to main menu")
+        ]
+        
+        print("\n")
+        for idx, (diff, color, desc) in enumerate(difficulties, 1):
+            print(f"  {color}{Colors.BOLD}{idx}.{Colors.RESET} {diff:<15} {Colors.DIM}{desc}{Colors.RESET}")
+        
+        print(f"\n{Box.create_box(width, style='single', color=Colors.MAGENTA)}")
+        choice = input(f"{Colors.YELLOW}Enter your choice (1-5): {Colors.RESET}").strip()
+        print(Box.create_bottom(width, 'single', Colors.MAGENTA))
         difficulties = {
             '1': 'easy',
             '2': 'medium',
