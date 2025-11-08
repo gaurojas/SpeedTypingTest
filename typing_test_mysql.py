@@ -663,20 +663,24 @@ class TypingTest:
             
             # Bottom box
             print(f"\n{Box.create_box(width, style='single', color=Colors.CYAN)}")
-            choice = input(f"{Colors.YELLOW}Enter your choice (1-7): {Colors.RESET}").strip()
+            # interactive selection
+            sel = self.select_menu_interactive(options, title="SPEED TYPING TEST", show_cancel=False)
             print(Box.create_bottom(width, 'single', Colors.CYAN))
-            if choice == '1':
+            if sel is None:
+                # Esc pressed -> continue main menu loop
+                continue
+            if sel == 0:
                 self.difficulty_menu()
-            elif choice == '2':
+            elif sel == 1:
                 self.leaderboard_menu()
-            elif choice == '3':
+            elif sel == 2:
                 self.display_user_stats()
                 input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
-            elif choice == '4':
+            elif sel == 3:
                 self.login()
-            elif choice == '5':
+            elif sel == 4:
                 self.clear_history()
-            elif choice == '6':
+            elif sel == 5:
                 # Export results
                 path = input(f"{Colors.YELLOW}Enter output CSV filepath (e.g. results.csv): {Colors.RESET}").strip()
                 if not path:
@@ -688,12 +692,9 @@ class TypingTest:
                         diff = None
                     self.db.export_results_to_csv(path, difficulty=diff)
                     input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
-            elif choice == '7':
+            elif sel == 6:
                 print(f"\n{Colors.GREEN}Thanks for using Speed Typing Test! Goodbye!{Colors.RESET}\n")
                 break
-            else:
-                print(f"\n{Colors.RED}Invalid choice! Please try again.{Colors.RESET}")
-                time.sleep(1)
     def difficulty_menu(self):
         self.clear_screen()
         width = 90  # Increased width for larger displays
@@ -714,20 +715,17 @@ class TypingTest:
             print(f"  {color}{Colors.BOLD}{idx}.{Colors.RESET} {diff:<15} {Colors.DIM}{desc}{Colors.RESET}")
         
         print(f"\n{Box.create_box(width, style='single', color=Colors.MAGENTA)}")
-        choice = input(f"{Colors.YELLOW}Enter your choice (1-5): {Colors.RESET}").strip()
+        # use interactive menu
+        sel = self.select_menu_interactive(difficulties, title="SELECT DIFFICULTY")
         print(Box.create_bottom(width, 'single', Colors.MAGENTA))
-        difficulties = {
-            '1': 'easy',
-            '2': 'medium',
-            '3': 'hard',
-            '4': 'extreme'
-        }
-        if choice in difficulties:
-            self.run_test_live(difficulties[choice])
+        mapping = {0: 'easy', 1: 'medium', 2: 'hard', 3: 'extreme'}
+        if sel is None:
+            return
+        if sel in mapping:
+            self.run_test_live(mapping[sel])
             input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
-        elif choice != '5':
-            print(f"\n{Colors.RED}Invalid choice!{Colors.RESET}")
-            time.sleep(1)
+        elif sel == 4:
+            return
     def leaderboard_menu(self):
         self.clear_screen()
         print(f"\n{Colors.BOLD}Select Leaderboard:{Colors.RESET}\n")
@@ -737,20 +735,29 @@ class TypingTest:
         print(f"  {Colors.MAGENTA}4.{Colors.RESET} Hard")
         print(f"  {Colors.RED}5.{Colors.RESET} Extreme")
         print(f"  {Colors.CYAN}6.{Colors.RESET} Back to Main Menu")
-        choice = input(f"\n{Colors.YELLOW}Enter your choice (1-6): {Colors.RESET}").strip()
+        opts = [
+            ("Global (All Difficulties)"),
+            ("Easy"),
+            ("Medium"),
+            ("Hard"),
+            ("Extreme"),
+            ("Back to Main Menu")
+        ]
+        sel = self.select_menu_interactive(opts, title="Select Leaderboard")
         difficulties = {
-            '1': None,
-            '2': 'easy',
-            '3': 'medium',
-            '4': 'hard',
-            '5': 'extreme'
+            0: None,
+            1: 'easy',
+            2: 'medium',
+            3: 'hard',
+            4: 'extreme'
         }
-        if choice in difficulties:
-            self.display_leaderboard(difficulties[choice])
+        if sel is None:
+            return
+        if sel in difficulties:
+            self.display_leaderboard(difficulties[sel])
             input(f"\n{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}")
-        elif choice != '6':
-            print(f"\n{Colors.RED}Invalid choice!{Colors.RESET}")
-            time.sleep(1)
+        elif sel == 5:
+            return
     def login(self):
         self.clear_screen()
         print(f"\n{Colors.CYAN}{Colors.BOLD}╔{'═' * 58}╗{Colors.RESET}")
@@ -785,6 +792,85 @@ class TypingTest:
         input(f"\n{Colors.GREEN}Press ENTER to continue...{Colors.RESET}")
         self.login()
         self.main_menu()
+
+    def select_menu_interactive(self, options, title=None, footer=None, start_index=0, show_cancel=True):
+        """Display a simple interactive menu where user can use Up/Down arrow keys and Enter to select.
+
+        options: list of strings or list of tuples where first element is the label.
+        Returns the selected index (0-based) or None if cancelled (Esc).
+        """
+        # normalize options to labels
+        labels = [opt[0] if isinstance(opt, (list, tuple)) else str(opt) for opt in options]
+        current = max(0, min(start_index, len(labels)-1))
+        try:
+            self.hide_cursor()
+            while True:
+                self.clear_screen()
+                width = 100
+                if title:
+                    print(Box.create_box(width, title, 'double', Colors.CYAN))
+                    print(Box.create_bottom(width, 'double', Colors.CYAN))
+                print()
+                for i, lbl in enumerate(labels):
+                    prefix = '  '
+                    if i == current:
+                        # reverse video for highlight
+                        print(f"{prefix}\033[7m{Colors.BOLD}{lbl}{Colors.RESET}\033[0m")
+                    else:
+                        print(f"{prefix}{lbl}")
+                if footer:
+                    print(f"\n{footer}")
+                if show_cancel:
+                    print(f"\n{Colors.DIM}Use ↑/↓ arrows to navigate · Enter to select · Esc to cancel{Colors.RESET}")
+                else:
+                    print(f"\n{Colors.DIM}Use ↑/↓ arrows to navigate · Enter to select{Colors.RESET}")
+
+                # read a key
+                if os.name == 'nt':
+                    key = msvcrt.getch()
+                    if key == b'\xe0':
+                        key2 = msvcrt.getch()
+                        if key2 == b'H':  # up
+                            current = (current - 1) % len(labels)
+                            continue
+                        elif key2 == b'P':  # down
+                            current = (current + 1) % len(labels)
+                            continue
+                        else:
+                            continue
+                    elif key == b'\r':
+                        return current
+                    elif key == b'\x1b':
+                        return None
+                    else:
+                        # ignore other keys
+                        continue
+                else:
+                    # Unix-like: read escape sequences
+                    fd = sys.stdin.fileno()
+                    old_settings = termios.tcgetattr(fd)
+                    try:
+                        tty.setraw(fd)
+                        ch = sys.stdin.read(1)
+                        if ch == '\x1b':
+                            # possible arrow
+                            seq = sys.stdin.read(2)
+                            if seq == '[A':
+                                current = (current - 1) % len(labels)
+                                continue
+                            elif seq == '[B':
+                                current = (current + 1) % len(labels)
+                                continue
+                            else:
+                                return None
+                        elif ch == '\r' or ch == '\n':
+                            return current
+                        else:
+                            continue
+                    finally:
+                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        finally:
+            self.show_cursor()
 
 if __name__ == "__main__":
     try:
